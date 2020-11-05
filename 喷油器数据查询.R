@@ -12,7 +12,7 @@ library(data.table)
 library(formattable)
 library(RODBC)  
 library(tibble)
-
+library(bookdownplus)
 
 
 #查询最近数据，数据排版
