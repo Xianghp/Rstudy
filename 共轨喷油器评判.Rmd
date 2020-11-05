@@ -1,0 +1,579 @@
+---
+title: "共轨喷油器生产用EFS机床R语言评判文件"
+author: "向和平"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: menu
+    #source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(plotly)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(flexdashboard)
+library(RMySQL)
+library(magrittr)
+library(xlsx)
+library(knitr)
+
+result_all <- readLines("C:\\Documents and Settings\\Administrator\\Desktop\\QueryDbFiles\\test_r.sql") %>% 
+		      paste(collapse="") %>%
+		      dbGetQuery(dbConnect(MySQL(),user='recedit',password='8409',dbname='qualidata',host="localhost"), .) %>%
+  
+#result_all <- readLines("G:\\test_r.sql") %>% 
+		      #paste(collapse="") %>%
+		      #dbGetQuery(dbConnect(MySQL(),user='root',password='643100xhp',dbname='qualidata',host="localhost"), .) %>%
+  
+#result_all <- readLines("D:\\xianghp\\common_rail_injector\\test_r.sql") %>% 
+		#paste(collapse="") %>%
+		#dbGetQuery(dbConnect(MySQL(),user='root',password='643100xhp',dbname='qualidata',host="localhost"), .) %>%
+  
+  
+          #filter(qualification_date_time>"2017-03-07 18:00:00") %>% #起始时间（不要动）
+          #filter(qualification_date_time<"2017-04-05 16:00:00") %>% #结束时间（不要动）
+          filter(qualification_date_time>"2017-05-08 00:00:00") %>% #起始时间
+          filter(qualification_date_time<"2017-05-08 24:00:00") %>% #起始时间
+          filter(rail_pressure_cons%in%c(250,400,850,1000,1250,1400) )%>% 
+          filter(pulse_length!=0 )%>% 
+          select(qualification_date_time,injector_number,rail_pressure_cons,pulse_length,aver_inj_volume,std_inj_volume,bench_channel,aver_opening_delay,aver_closing_delay) 
+  
+  result <- result_all %>%
+  filter(injector_number%in%grep('014',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+  #filter(!injector_number%in%grep('gan',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+  #filter(!injector_number%in%grep('17417',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+    filter(!injector_number%in%grep('db',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+    filter(!injector_number%in%c("014(52)-63-1","014(52)-63-300" ,"014(52)-16-1" ,"014(52)-26-1" ,"014(52)-12-1")) %>%
+  #filter(injector_number%in%c("014-189-a1","014-237-a1","014-88-a1","014-29-a1","014-348-a1","014-260-a1")) %>%
+    filter(!injector_number%in%grep('014A',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+    filter(!injector_number%in%grep('300',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+    filter(!injector_number%in%grep('388',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+    filter(!injector_number%in%grep('014-31-2',rownames(table(result_all$injector_number)),value = TRUE)) %>%
+  filter(!injector_number%in%grep("014-020008-2",rownames(table(result_all$injector_number)),value = TRUE)) 
+
+
+result_volume <- result%>% select(qualification_date_time,injector_number,rail_pressure_cons,pulse_length,aver_inj_volume,std_inj_volume,bench_channel)
+
+result_delay <- result%>% select(qualification_date_time,injector_number,rail_pressure_cons,pulse_length,aver_opening_delay,aver_closing_delay,bench_channel)
+
+#options(digits = 2)
+
+```
+
+第一缸
+=======================================================================
+
+Row{.tabset}
+-----------------------------------------------------------------------
+
+### 喷油器数据
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+
+channel_1_injector_data  <- result %>% 
+  filter(bench_channel == 1 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(injector_data,aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,injector_data)
+#write.csv(channel_1_injector_data, file = "D:\\xianghp\\common_rail_injector\\喷油器\\channel_1_injector_data.csv")
+write.csv(channel_1_injector_data, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_injector_data.csv")
+
+knitr::kable(channel_1_injector_data,digits = 2)
+
+channel_2_injector_data  <- result %>% 
+  filter(bench_channel == 2 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(injector_data,aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,injector_data)
+
+channel_3_injector_data  <- result %>% 
+  filter(bench_channel == 3 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(injector_data,aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,injector_data)
+
+channel_4_injector_data  <- result %>% 
+  filter(bench_channel == 4 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(injector_data,aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,injector_data)
+
+```
+
+
+### 喷油器油量与油量散差
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+
+channel_1_volume_std  <- result_volume %>% 
+  filter(bench_channel == 1 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(aver_std,aver_inj_volume,std_inj_volume,sep ="/")  %>%  spread(pressure_pulse,aver_std)
+#write.csv(channel_1_volume_std, file = "D:\\xianghp\\common_rail_injector\\喷油器\\channel_1_volume_std.csv")
+write.csv(channel_1_volume_std, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_volume_std.csv")
+
+knitr::kable(channel_1_volume_std,digits = 2)
+
+channel_2_volume_std  <- result_volume %>% 
+  filter(bench_channel == 2 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(aver_std,aver_inj_volume,std_inj_volume,sep ="/")  %>%  spread(pressure_pulse,aver_std)
+
+channel_3_volume_std  <- result_volume %>% 
+  filter(bench_channel == 3 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(aver_std,aver_inj_volume,std_inj_volume,sep ="/")  %>%  spread(pressure_pulse,aver_std)
+
+channel_4_volume_std  <- result_volume %>% 
+  filter(bench_channel == 4 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(aver_std,aver_inj_volume,std_inj_volume,sep ="/")  %>%  spread(pressure_pulse,aver_std)
+
+```
+
+### 喷油器开启与关闭延时
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+
+channel_1_opening_closing  <- result_delay %>% 
+  filter(bench_channel == 1 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(opening_closing,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,opening_closing)
+#write.csv(channel_1_opening_closing, file = "D:\\xianghp\\common_rail_injector\\喷油器\\channel_1_opening_closing.csv")
+
+write.csv(channel_1_opening_closing, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_opening_closing.csv")
+
+knitr::kable(channel_1_opening_closing,digits = 2)
+
+channel_2_opening_closing  <- result_delay %>% 
+  filter(bench_channel == 2 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(opening_closing,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,opening_closing)
+
+channel_3_opening_closing  <- result_delay %>% 
+  filter(bench_channel == 3 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(opening_closing,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,opening_closing)
+
+channel_4_opening_closing  <- result_delay %>% 
+  filter(bench_channel == 4 ) %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>% unite(opening_closing,aver_opening_delay,aver_closing_delay,sep ="/")  %>%  spread(pressure_pulse,opening_closing)
+
+```
+
+
+
+### 喷油器数据分析
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+
+std_inj_volume_standard <- c(0.8,2,2,2,2,2,2,0.8,0.8,2)
+inj_volume_deviation_0.95  <- c(0.85,0.85,0.95,0.95,0,0.94,0.95,0.94,0.94,0.95)
+inj_volume_deviation_1.05  <- c(1.15,1.15,1.05,1.05,1.22,1.06,1.05,1.06,1.06,1.05)
+
+channel_1_inj_volume_standard <- c(12.4,11.5,77.0,126.5,4.5,63.5,139.4,52.2,90.2,127.9)#标准喷油编号77和18
+channel_1_volume_0.95 <- channel_1_inj_volume_standard * inj_volume_deviation_0.95
+channel_1_volume_1.05 <- channel_1_inj_volume_standard * inj_volume_deviation_1.05
+
+channel_1_analysis  <- result %>% 
+  filter(bench_channel == 1 ) %>%
+  mutate(volume_0.95 = aver_inj_volume > channel_1_volume_0.95 )  %>%  
+  mutate(volume_1.05 = aver_inj_volume < channel_1_volume_1.05) %>%  
+  mutate(std_volume = std_inj_volume < std_inj_volume_standard ) %>%  
+  mutate(judge_result = volume_0.95 & volume_1.05 & std_volume) 
+  #write.csv(channel_1_analysis, file = "D:\\xianghp\\common_rail_injector\\喷油器\\channel_1_analysis.csv")
+
+   write.csv(channel_1_analysis, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_analysis.csv")
+  
+knitr::kable(channel_1_analysis,digits = 2)
+
+channel_2_inj_volume_standard <- c(10.1,10.2,77.7,126.3,4.1,60.9,140.0,53.2,90.7,127.4)
+channel_2_volume_0.95 <- channel_2_inj_volume_standard * inj_volume_deviation_0.95
+channel_2_volume_1.05 <- channel_2_inj_volume_standard * inj_volume_deviation_1.05
+channel_2_analysis  <- result %>% 
+  filter(bench_channel == 2 ) %>%
+  mutate(volume_0.95 = aver_inj_volume > channel_2_volume_0.95 )  %>%  
+  mutate(volume_1.05 = aver_inj_volume < channel_2_volume_1.05) %>%  
+  mutate(std_volume = std_inj_volume < std_inj_volume_standard ) %>%  
+  mutate(judge_result = volume_0.95 & volume_1.05 & std_volume) 
+
+
+channel_3_inj_volume_standard <- c(12.6,11.8,79.1,129.0,4.7,64.1,142.1,52.9,92.0,131.4)
+channel_3_volume_0.95 <- channel_3_inj_volume_standard * inj_volume_deviation_0.95
+channel_3_volume_1.05 <- channel_3_inj_volume_standard * inj_volume_deviation_1.05
+channel_3_analysis  <- result %>% 
+  filter(bench_channel == 3 ) %>%
+  mutate(volume_0.95 = aver_inj_volume > channel_3_volume_0.95 )  %>%  
+  mutate(volume_1.05 = aver_inj_volume < channel_3_volume_1.05) %>%  
+  mutate(std_volume = std_inj_volume < std_inj_volume_standard ) %>%  
+  mutate(judge_result = volume_0.95 & volume_1.05 & std_volume) 
+
+channel_4_inj_volume_standard <- c(12.7,11.8,78.2,127.2,4.6,63.8,140.0,52.4,91.0,129.5)
+channel_4_volume_0.95 <- channel_4_inj_volume_standard * inj_volume_deviation_0.95
+channel_4_volume_1.05 <- channel_4_inj_volume_standard * inj_volume_deviation_1.05
+channel_4_analysis  <- result %>% 
+  filter(bench_channel == 4 ) %>%
+  mutate(volume_0.95 = aver_inj_volume > channel_4_volume_0.95 )  %>%  
+  mutate(volume_1.05 = aver_inj_volume < channel_4_volume_1.05) %>%  
+  mutate(std_volume = std_inj_volume < std_inj_volume_standard ) %>%  
+  mutate(judge_result = volume_0.95 & volume_1.05 & std_volume) 
+
+```
+
+
+### 测试工况10点均值
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+
+channel_1_aver_10point <- channel_1_analysis %>%
+  group_by(rail_pressure_cons,pulse_length,bench_channel) %>% summarise_at(vars(aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,volume_0.95,volume_1.05,std_volume,judge_result), funs(mean)) 
+#%>% mutate(inj_volume_standard = bench_channel / bench_channel * channel_1_inj_volume_standard)
+  #select(缸号 = bench_channel,轨压 = rail_pressure_cons , 脉宽 =pulse_length,油量 =aver_inj_volume ,油量散差=std_inj_volume,开启延时 = aver_opening_delay,关闭延时 = aver_closing_delay,volume_0.95,volume_1.05,std_volume,judge_result) 
+ # mutate(油量0.95 = 油量*0.95) %>% mutate(油量1.05 = 油量*1.05)%>%
+  #mutate(油量0.97 = 油量*0.97) %>% mutate(油量1.03 = 油量*1.03)
+#write.csv(channel_1_aver_10point, file = "D:\\xianghp\\common_rail_injector\\喷油器\\channel_1_aver_10poin.csv")
+
+write.csv(channel_1_aver_10point, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_aver_10poin.csv")
+
+knitr::kable(channel_1_aver_10point,digits = 2)
+
+
+channel_2_aver_10point <- channel_2_analysis %>%
+  group_by(rail_pressure_cons,pulse_length,bench_channel) %>% summarise_at(vars(aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,volume_0.95,volume_1.05,std_volume,judge_result), funs(mean)) 
+
+channel_3_aver_10point <- channel_3_analysis %>%
+  group_by(rail_pressure_cons,pulse_length,bench_channel) %>% summarise_at(vars(aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,volume_0.95,volume_1.05,std_volume,judge_result), funs(mean)) 
+
+channel_4_aver_10point <- channel_4_analysis %>%
+  group_by(rail_pressure_cons,pulse_length,bench_channel) %>% summarise_at(vars(aver_inj_volume,std_inj_volume,aver_opening_delay,aver_closing_delay,volume_0.95,volume_1.05,std_volume,judge_result), funs(mean)) 
+
+```
+
+
+### 油量均值差
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+channel_1_aver_volume_deviation  <- channel_1_aver_10point %>%  select(rail_pressure_cons,pulse_length,bench_channel,aver_inj_volume)%>% 
+data.frame(channel_1_volume_standard=channel_1_inj_volume_standard) %>%
+  mutate(volume_deviation = channel_1_volume_standard-aver_inj_volume) %>%
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>%
+  unite(stand_aver_devia,channel_1_volume_standard,aver_inj_volume,volume_deviation,sep ="/") %>% spread(pressure_pulse,stand_aver_devia) 
+  
+  kable(channel_1_aver_volume_deviation, format = "markdown",digits = 2)
+  
+  min(channel_1_aver_10point %>%  select(rail_pressure_cons,pulse_length,bench_channel,aver_inj_volume)%>% 
+data.frame(channel_1_volume_standard=channel_1_inj_volume_standard) %>%
+  mutate(volume_deviation = channel_1_volume_standard-aver_inj_volume)%>%
+  select(volume_deviation))
+  
+  max(channel_1_aver_10point %>%  select(rail_pressure_cons,pulse_length,bench_channel,aver_inj_volume)%>% 
+data.frame(channel_1_volume_standard=channel_1_inj_volume_standard) %>%
+  mutate(volume_deviation = channel_1_volume_standard-aver_inj_volume)%>%
+  select(volume_deviation))
+  
+  summary.data.frame(channel_1_aver_10point %>%  
+data.frame(channel_1_volume_standard=channel_1_inj_volume_standard) %>%
+  mutate(volume_deviation = channel_1_volume_standard-aver_inj_volume))
+  
+  write.csv(channel_1_aver_volume_deviation, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_aver_volume_deviation.csv")
+
+```
+
+
+
+
+### 喷油器数据分析结果
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+
+channel_1_score <- channel_1_analysis %>% select(qualification_date_time,injector_number,bench_channel,volume_0.95,volume_1.05,std_volume,judge_result)%>%
+  group_by(qualification_date_time,injector_number,bench_channel) %>% summarise_each(funs(sum))%>% mutate(judge_score = volume_0.95+volume_1.05+std_volume )
+#write.csv(channel_1_score, file = "D:\\xianghp\\common_rail_injector\\喷油器\\channel_1_score.csv")
+write.csv(channel_1_score, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_score.csv")
+
+knitr::kable(channel_1_score,digits = 2)
+
+summary.data.frame(channel_1_score)
+
+
+channel_2_score <- channel_2_analysis %>% select(qualification_date_time,injector_number,bench_channel,volume_0.95,volume_1.05,std_volume,judge_result)%>%
+  group_by(qualification_date_time,injector_number,bench_channel) %>% summarise_each(funs(sum))%>% mutate(judge_score = volume_0.95+volume_1.05+std_volume )
+
+channel_3_score <- channel_3_analysis %>% select(qualification_date_time,injector_number,bench_channel,volume_0.95,volume_1.05,std_volume,judge_result)%>%
+  group_by(qualification_date_time,injector_number,bench_channel) %>% summarise_each(funs(sum))%>% mutate(judge_score = volume_0.95+volume_1.05+std_volume )
+
+channel_4_score <- channel_4_analysis %>% select(qualification_date_time,injector_number,bench_channel,volume_0.95,volume_1.05,std_volume,judge_result)%>%
+  group_by(qualification_date_time,injector_number,bench_channel) %>% summarise_each(funs(sum))%>% mutate(judge_score = volume_0.95+volume_1.05+std_volume )
+
+```
+
+
+
+### 喷油器评判合格
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+
+channel_1_judge_result <-  channel_1_score  %>% filter(judge_result >= 9)
+#write.csv(channel_1_judge_result, file = "D:\\xianghp\\common_rail_injector\\喷油器\\channel_1_judge_result.csv")
+
+write.csv(channel_1_judge_result, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\channel_1_judge_result.csv")
+
+
+
+
+channel_2_judge_result <-  channel_2_score  %>% filter(judge_result>= 9)
+
+channel_3_judge_result <-  channel_3_score  %>% filter(judge_result >= 9)
+
+channel_4_judge_result <-  channel_4_score  %>% filter(judge_result >= 9)
+
+knitr::kable(channel_1_judge_result,digits = 2)
+
+
+
+
+
+
+injector_number_score <- row.names(table(channel_1_score$injector_number))
+length(injector_number_score)
+injector_number_score
+
+injector_number_judge_result <- row.names(table(channel_1_judge_result$injector_number))
+length(injector_number_judge_result)
+injector_number_judge_result
+
+paste(length(injector_number_judge_result)/length(injector_number_score)*100,"%",sep="")
+
+
+
+```
+
+
+
+源数据
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+injector_data_014 <- bind_rows(channel_1_injector_data, channel_2_injector_data, channel_3_injector_data, channel_4_injector_data)
+knitr::kable(injector_data_014,digits = 2)
+
+write.csv(injector_data_014, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\injector_data_014.csv")
+
+```
+
+
+
+油量
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+volume_std <- bind_rows(channel_1_volume_std, channel_2_volume_std, channel_3_volume_std, channel_4_volume_std)
+knitr::kable(volume_std,digits = 2)
+
+write.csv(volume_std, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\volume_std.csv")
+
+```
+
+延时
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+opening_closing  <- bind_rows(channel_1_opening_closing, channel_2_opening_closing, channel_3_opening_closing, channel_4_opening_closing)
+knitr::kable(opening_closing ,digits = 2)
+
+write.csv(opening_closing, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\opening_closing.csv")
+```
+
+
+
+分析
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+analysis  <- bind_rows(channel_1_analysis, channel_2_analysis, channel_3_analysis, channel_4_analysis)
+knitr::kable(analysis ,digits = 2)
+
+write.csv(analysis, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\analysis.csv")
+```
+
+
+均值
+=======================================================================
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+aver_10point <- bind_rows(channel_1_aver_10point, channel_2_aver_10point, channel_3_aver_10point, channel_4_aver_10point)
+knitr::kable(aver_10point ,digits = 2)
+
+write.csv(aver_10point, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\aver_10point.csv")
+```
+
+均差
+=======================================================================
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+aver_volume_deviation  <- aver_10point %>%  select(rail_pressure_cons,pulse_length,bench_channel,aver_inj_volume)%>% 
+data.frame(volume_standard=c(channel_1_inj_volume_standard,channel_2_inj_volume_standard,channel_3_inj_volume_standard,channel_4_inj_volume_standard)) %>%
+  mutate(volume_deviation = volume_standard-aver_inj_volume) %>%
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") %>%
+  unite(stand_aver_devia,volume_standard,aver_inj_volume,volume_deviation,sep ="/") %>%
+  spread(pressure_pulse,stand_aver_devia) 
+  
+  kable(aver_volume_deviation, format = "markdown",digits = 2)
+  
+  min(aver_10point %>%  select(rail_pressure_cons,pulse_length,bench_channel,aver_inj_volume)%>% data.frame(volume_standard=c(channel_1_inj_volume_standard,channel_2_inj_volume_standard,channel_3_inj_volume_standard,channel_4_inj_volume_standard)) %>%
+  mutate(volume_deviation = volume_standard-aver_inj_volume) %>%select(volume_deviation))
+  
+  max(aver_10point %>%  select(rail_pressure_cons,pulse_length,bench_channel,aver_inj_volume)%>% data.frame(volume_standard=c(channel_1_inj_volume_standard,channel_2_inj_volume_standard,channel_3_inj_volume_standard,channel_4_inj_volume_standard)) %>%
+  mutate(volume_deviation = volume_standard-aver_inj_volume) %>%select(volume_deviation))
+  
+  summary.data.frame(aver_10point%>%data.frame(volume_standard=c(channel_1_inj_volume_standard,channel_2_inj_volume_standard,channel_3_inj_volume_standard,channel_4_inj_volume_standard)) %>%
+  mutate(volume_deviation = volume_standard-aver_inj_volume))
+  
+  write.csv(aver_volume_deviation, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\aver_volume_deviation.csv")
+
+```
+
+
+
+
+得分
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+score <- bind_rows(channel_1_score, channel_2_score, channel_3_score, channel_4_score)
+knitr::kable(score ,digits = 2)
+
+summary.data.frame(score)
+
+write.csv(score, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\score.csv")
+```
+
+
+
+评判
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+judge_result <- bind_rows(channel_1_judge_result, channel_2_judge_result, channel_3_judge_result, channel_4_judge_result)
+
+write.csv(judge_result, file = "D:\\xiangheping\\common rail injector report\\R_EFS\\judge_result.csv")
+
+
+injector_number_score <- row.names(table(score$injector_number))
+length(injector_number_score)
+injector_number_score
+
+injector_number_judge_result <- row.names(table(judge_result$injector_number))
+length(injector_number_judge_result)
+injector_number_judge_result
+
+paste(length(injector_number_judge_result)/length(injector_number_score)*100,"%",sep="")
+
+knitr::kable(judge_result ,digits = 2)
+
+```
+
+
+
+
+散点
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+  result_pressure_pulse <- result %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_") 
+#knitr::kable(result_pressure_pulse ,digits = 2)
+
+p <- ggplot(result_pressure_pulse,aes(pressure_pulse,aver_inj_volume,col=injector_number))+geom_point()+geom_line()+
+  #scale_shape_manual(values=c(15,17,19,0,2,5,4,8))+
+  #scale_x_continuous(limits=c(0,1800),breaks=seq(0,1800,100))+
+  #scale_y_continuous(limits=c(0,130),breaks=seq(0,130,10))+
+  #scale_y_continuous(limits=c(0,140),breaks=seq(0,140,10))+
+  #scale_y_continuous(limits=c(0,190),breaks=seq(0,190,10))+
+  scale_y_continuous(limits=c(0,170),breaks=seq(0,170,10))+
+  xlab("10个工况点")+
+  ylab("油量(mm^3)")
+  #labs(col="injector_number",shape="injector_number")
+ggplotly(p)
+
+```
+
+
+
+
+分面
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+p <- ggplot(result_pressure_pulse,aes(pressure_pulse,aver_inj_volume,col=injector_number))+
+  geom_point()+
+  facet_wrap(~ pressure_pulse, nrow=2)+
+  #scale_shape_manual(values=c(15,17,19,0,2,5,4,8))+
+  #scale_x_continuous(limits=c(0,1800),breaks=seq(0,1800,100))+
+  #scale_y_continuous(limits=c(0,130),breaks=seq(0,130,10))+
+  #scale_y_continuous(limits=c(0,140),breaks=seq(0,140,10))+
+  #scale_y_continuous(limits=c(0,190),breaks=seq(0,190,10))+
+  #scale_y_continuous(limits=c(0,160),breaks=seq(0,160,10))+
+  xlab("10个工况点")+
+  ylab("油量(mm^3)")+
+  theme(legend.position = c(.88, .3),legend.background=element_blank(),axis.text.x = element_text(angle=60, hjust=1))
+ggplotly(p)
+
+```
+
+
+
+
+箱线
+=======================================================================
+
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+p <- ggplot(result_pressure_pulse,aes(pressure_pulse,aver_inj_volume,col=pressure_pulse))+
+  geom_point()+geom_boxplot()+
+  #scale_shape_manual(values=c(15,17,19,0,2,5,4,8))+
+  #scale_x_continuous(limits=c(0,1800),breaks=seq(0,1800,100))+
+  #scale_y_continuous(limits=c(0,130),breaks=seq(0,130,10))+
+  #scale_y_continuous(limits=c(0,140),breaks=seq(0,140,10))+
+  #scale_y_continuous(limits=c(0,190),breaks=seq(0,190,10))+
+  #scale_y_continuous(limits=c(0,160),breaks=seq(0,160,10))+
+  scale_y_continuous(limits=c(0,170),breaks=seq(0,170,10))+
+  xlab("10个工况点")+
+  ylab("油量(mm^3)")
+  #labs(col="injector_number",shape="injector_number")
+ggplotly(p)
+
+```
+
+
+
+柱形
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+p <- 	ggplot(result_pressure_pulse,aes(pressure_pulse,aver_inj_volume,fill=injector_number))+
+  geom_bar(stat = "identity", position = "dodge",width=0.5)+
+  #facet_grid(rail_pressure_cons~.)+
+  #scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_y_continuous(limits=c(0,170),breaks=seq(0,170,10))+
+  xlab("10个工况点")+
+  ylab("油量(mm^3)")
+ggplotly(p)
+```
+
+
+散差
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+p <- 	ggplot(result_pressure_pulse,aes(pressure_pulse,std_inj_volume,fill=injector_number))+
+  geom_bar(stat = "identity", position = "dodge",width=0.5)+
+  #facet_grid(rail_pressure_cons~.)+
+  scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2))+
+  #scale_y_continuous(limits=c(0,170),breaks=seq(0,170,10))+
+  xlab("10个工况点")+
+  ylab("油量散差")
+ggplotly(p)
+```
+
+
+热力
+=======================================================================
+
+```{r ,echo=FALSE,warning=FALSE,message=FALSE,dev='cairo_pdf',fig.showtext=TRUE}
+analysis_all <- analysis %>% 
+  unite(pressure_pulse,rail_pressure_cons,pulse_length,sep ="_")
+
+p <- 	ggplot(analysis_all,aes(pressure_pulse,injector_number))+
+  geom_tile(aes(fill=judge_result))
+#judge_result = volume_0.95 & volume_1.05 & std_volume
+ggplotly(p)
+```
